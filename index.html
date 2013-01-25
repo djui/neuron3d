@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+  body {
+    background-color: #ffffff;
+    margin: 0px;
+    overflow: hidden;
+  }
+  </style>
+	<title>Neuron</title>
+</head>
+
+<body>
+</body>
+</html>
+
+<script src="js/three.min.js"></script>
+<!-- Helpers -->
+<script src="js/Detector.js"></script>
+<script src="js/Fullscreen.js"></script>
+<script src="js/KeyboardState.js"></script>
+<script src="js/WindowResize.js"></script>
+<script src="js/helpers/AxisHelper.js"></script>
+<script src="js/helpers/DirectionalLightHelper.js"></script>
+<script src="js/helpers/PointLightHelper.js"></script>
+<script src="js/helpers/SpotLightHelper.js"></script>
+<!-- Controls -->
+<script src="js/controls/TrackballControls.js"></script>
+<!-- Bloom Filter -->
+<script src="js/shaders/ConvolutionShader.js"></script>
+<script src="js/shaders/CopyShader.js"></script>
+<!-- Tilt Shift Filter -->
+<script src="js/shaders/HorizontalTiltShiftShader.js"></script>
+<script src="js/shaders/VerticalTiltShiftShader.js"></script>
+<!-- Effect composer -->
+<script src="js/postprocessing/EffectComposer.js"></script>
+<script src="js/postprocessing/RenderPass.js"></script>
+<script src="js/postprocessing/BloomPass.js"></script>
+<script src="js/postprocessing/ShaderPass.js"></script>
+<script src="js/postprocessing/MaskPass.js"></script>
+
+<script type="text/javascript">
+if (!Detector.webgl) Detector.addGetWebGLMessage();
+
+// stop the user getting a text cursor
+document.onselectstart = function() {
+  return false;
+};
+
+var container, renderer, scene, camera, composer, controls;
+var keyboard = new THREEx.KeyboardState();
+
+init();
+animate();
+
+function animate() {
+  requestAnimationFrame(animate);
+  render();   
+  update();
+}
+
+function render() {
+  //renderer.render(scene, camera);
+  composer.render(0.1);
+}
+
+function update() {
+  controls.update();
+}
+
+// FUNCTIONS    
+function init() {
+  /////////////////////////////////////////////////////////////////////
+  // ENVIRONMENT
+  /////////////////////////////////////////////////////////////////////
+
+  var SCREEN_WIDTH = window.innerWidth,
+      SCREEN_HEIGHT = window.innerHeight;
+
+  // RENDERER
+  renderer = new THREE.WebGLRenderer({
+    antialias: true
+  });
+  renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  container.appendChild(renderer.domElement);
+
+  // SCENE
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x000000, 2000, 3500);
+
+  // CAMERA
+  var VIEW_ANGLE = 45,
+      ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT,
+      NEAR = 0.1,
+      FAR = 20000;
+  camera = new THREE.PerspectiveCamera(VIEW_ANGLE, ASPECT, NEAR, FAR);
+  scene.add(camera);
+  camera.position.z = 300;
+
+  // LIGHTS
+  // Point light
+  var pointLight = new THREE.PointLight(0xffffff);
+  pointLight.position.set(0, 250, 0);
+  scene.add(pointLight);
+  // Directional light
+  var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  directionalLight.position.set(250, 0, 0);
+  scene.add(directionalLight);
+  // Spot light
+  var spotLight = new THREE.SpotLight(0xffffff);
+  spotLight.position.set(100, 100, 1000);
+  spotLight.castShadow = true;
+  spotLight.shadowMapWidth = 1024;
+  spotLight.shadowMapHeight = 1024;
+  spotLight.shadowCameraNear = 500;
+  spotLight.shadowCameraFar = 4000;
+  spotLight.shadowCameraFov = 30;
+  scene.add(spotLight);
+
+  // EVENTS
+  THREEx.WindowResize(renderer, camera);
+  THREEx.FullScreen.bindKey({
+    charCode: 'm'.charCodeAt(0)
+  });
+
+  // EFFECT: BLOOM
+  var effectBloom = new THREE.BloomPass(3.0);
+  
+  // EFFECT: HORTIZONTAL TILT SHIFT SHADER
+  hblur = new THREE.ShaderPass(THREE.HorizontalTiltShiftShader);
+  // EFFECT: VERTICAL TILT SHIFT SHADER
+  vblur = new THREE.ShaderPass(THREE.VerticalTiltShiftShader);
+  
+  var bluriness = 6;
+  hblur.uniforms['h'].value = bluriness / SCREEN_WIDTH;
+  vblur.uniforms['v'].value = bluriness / SCREEN_HEIGHT;
+  hblur.uniforms['r'].value = 0.1;
+  vblur.uniforms['r'].value = 0.1;
+  //hblur.renderToScreen = true;
+  vblur.renderToScreen = true;
+
+  // COMPOSER
+  renderer.autoClear = false;
+
+  var renderTargetParameters = {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    format: THREE.RGBFormat,
+    stencilBuffer: false
+  };
+  var renderTarget = new THREE.WebGLRenderTarget(SCREEN_WIDTH, SCREEN_HEIGHT, renderTargetParameters);
+  composer = new THREE.EffectComposer(renderer, renderTarget);
+  var renderModel = new THREE.RenderPass(scene, camera);
+  composer.addPass(renderModel);
+  composer.addPass(effectBloom);
+  composer.addPass(hblur);
+  composer.addPass(vblur);
+  
+  // CONTROLS
+  controls = new THREE.TrackballControls(camera);
+  
+  // HELPERS
+  var axisHelper = new THREE.AxisHelper(200);
+  scene.add(axisHelper);
+  var spotlightHelper = new THREE.SpotLightHelper(spotLight, 10);
+  scene.add(spotlightHelper);
+  var pointLightHelper = new THREE.PointLightHelper(pointLight, 10);
+  scene.add(pointLightHelper);
+  var directionalLightHelper = new THREE.DirectionalLightHelper(directionalLight, 10);
+  scene.add(directionalLightHelper);
+  
+  /////////////////////////////////////////////////////////////////////
+  // NEURON
+  /////////////////////////////////////////////////////////////////////
+  
+  // MATERIAL
+  var sphereMaterial = new THREE.MeshPhongMaterial({
+    color: 0x0000ff,
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending
+  });
+
+  // SPHERE
+  var radius = 50,
+      segments = 16,
+      rings = 16;
+
+  var sphere1 = new THREE.Mesh(new THREE.SphereGeometry(radius, segments, rings), sphereMaterial);
+  sphere1.position.x = -100;
+  sphere1.position.z = 100;
+  scene.add(sphere1);
+  var sphere2 = new THREE.Mesh(new THREE.SphereGeometry(radius, segments, rings), sphereMaterial);
+  scene.add(sphere2);
+  var sphere3 = new THREE.Mesh(new THREE.SphereGeometry(radius, segments, rings), sphereMaterial);
+  sphere3.position.x = 100;
+  sphere3.position.z = -100;
+  scene.add(sphere3);
+}
+</script>
